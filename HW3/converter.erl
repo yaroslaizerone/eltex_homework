@@ -35,3 +35,4 @@ to_rub({lari, Amount}) when is_integer(Amount), Amount > 0->
 to_rub({Currency, _Amount}) ->
   io:format("Ошибка: Неизвестная валюта ~p~n", [Currency]),
   {error, badarg}.
+
