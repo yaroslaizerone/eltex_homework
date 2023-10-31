@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 29. окт. 2023 17:10
 %%%-------------------------------------------------------------------
--module(execeptions).
+-module(exceptions).
 -export([catch_all/1]).
 
 catch_all(Action) when is_function(Action, 0) ->
@@ -15,13 +15,13 @@ catch_all(Action) when is_function(Action, 0) ->
   catch
     throw:Reason ->
       io:format("Action ~p failed, reason ~p ~n", [Action, Reason]),
-      throw;
+      throw(Reason);
     error:Reason ->
       io:format("Action ~p failed, reason ~p ~n", [Action, Reason]),
-      error;
+      error(Reason);
     exit:Reason ->
       io:format("Action ~p failed, reason ~p ~n", [Action, Reason]),
-      exit;
+      exit(Reason);
     _:_ ->
       io:format("We covered all cases so this line will never be printed~n"),
       "Never will happen"

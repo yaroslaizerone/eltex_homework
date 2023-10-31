@@ -8,6 +8,6 @@
 %%%-------------------------------------------------------------------
 -author("kolpa").
 
--record(person,{id,name,age,gender}).
+-record(person, {id, name, age, gender}).
 -define(MALE, male).
 -define(FEMALE, female).
