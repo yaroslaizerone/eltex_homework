@@ -25,6 +25,7 @@ duplicate(List) ->
 
 duplicate([], Acc) ->
   lists:reverse(Acc);
+
 duplicate([H|T], Acc) ->
   duplicate(T, [H, H|Acc]).
 
