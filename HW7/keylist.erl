@@ -13,13 +13,22 @@
 
 -record(state, {list = [], counter = 0}).
 
-loop(#state{list = List, counter = Counter} = State) ->
+start_monitor(Name) ->
+  Pid = spawn(fun() -> loop(#state{}) end),
+  register(Name, Pid),
+  MonitorRef = erlang:monitor(process, Pid),
+  {ok, Pid, MonitorRef}.
+
+start_link(Name) ->
+  Pid = spawn_link(fun() -> loop(#state{}) end),
+  register(Name, Pid),
+  {ok, Pid}.
+
+loop(State = #state{list = List, counter = Counter}) ->
   receive
     {From, add, Key, Value, Comment} ->
-      NewList = [{Key, Value, Comment} | List],
-      NewCounter = Counter + 1,
-      NewState = State#state{list = NewList, counter = NewCounter},
-      From ! {ok, NewCounter},
+      NewState = State#state{list = [{Key, Value, Comment} | List], counter = Counter + 1},
+      From ! {ok, NewState#state.counter},
       loop(NewState);
 
     {From, is_member, Key} ->
@@ -28,28 +37,17 @@ loop(#state{list = List, counter = Counter} = State) ->
       loop(State);
 
     {From, take, Key} ->
-      {value, Element} = lists:keytake(Key, 1, List),
-      NewList = tl(Element),
+      {value, Element, NewList} = lists:keytake(Key, 1, List),
       From ! Element,
       loop(State#state{list = NewList});
 
     {From, find, Key} ->
-      {value, Element} = lists:keyfind(Key, 1, List),
-      From ! Element,
+      Result = lists:keyfind(Key, 1, List),
+      From ! Result,
       loop(State);
 
     {From, delete, Key} ->
       NewList = lists:keydelete(Key, 1, List),
-      From ! ok,
+      From ! NewList,
       loop(State#state{list = NewList})
   end.
-
-start_monitor(Name) ->
-  Pid = spawn_link(fun() -> loop(#state{}) end),
-  MonitorRef = erlang:monitor(process, Pid),
-  {ok, Pid, MonitorRef}.
-
-start_link(Name) ->
-  Pid = spawn_link(fun() -> loop(#state{}) end),
-  true = register(Name, Pid),
-  {ok, Pid}.

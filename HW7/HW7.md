@@ -181,3 +181,88 @@ process_info(Lincked2).
  {suspending,[]}]
 
 ``` 
+
+
+# Доработанный Результат
+```
+1> c(keylist).
+{ok,keylist}
+2> self().
+<0.85.0>
+3> keylist:start_monitor(monitored).
+{ok,<0.93.0>,#Ref<0.462696011.3418619908.39359>}
+4>  keylist:start_link(linked).
+{ok,<0.95.0>}
+5> MonitoredPid = whereis(monitored).
+<0.93.0>
+6> LinkedPid = whereis(linked).
+<0.95.0>
+7> MonitoredPid ! {self(), add, key1, value1, "comment1"}.
+{<0.85.0>,add,key1,value1,"comment1"}
+8> MonitoredPid ! {self(), add, key2, value2, "comment2"}.
+{<0.85.0>,add,key2,value2,"comment2"}
+9> MonitoredPid ! {self(), is_member, key1}.
+{<0.85.0>,is_member,key1}
+10> MonitoredPid ! {self(), take, key1}.
+{<0.85.0>,take,key1}
+11> flush().
+Shell got {ok,1}
+Shell got {ok,2}
+Shell got true
+Shell got {key1,value1,"comment1"}
+ok
+12> self().
+<0.85.0>
+13> MonitoredPid ! {self(), find, key2}.
+{<0.85.0>,find,key2}
+14> MonitoredPid ! {self(), delete, key2}.
+{<0.85.0>,delete,key2}
+15> flush().
+Shell got {key2,value2,"comment2"}
+Shell got []
+ok
+16> exit(MonitoredPid, normal).
+true
+17> flush().
+ok
+18> self().
+<0.85.0>
+19> exit(LinkedPid, normal).
+true
+20> flush().
+ok
+21> self().
+<0.85.0>
+22> process_flag(trap_exit, true).
+false
+23> self().
+<0.85.0>
+24> keylist:start_link(linked).
+** exception error: bad argument
+     in function  register/2
+        called as register(linked,<0.116.0>)
+        *** argument 1: name is in use
+     in call from keylist:start_link/1 (keylist.erl, line 24)
+25> keylist:start_link(linked).
+{ok,<0.119.0>}
+26> exit(LinkedPid, kill).
+true
+27> flush().
+ok
+28> self().
+<0.117.0>
+29> process_flag(trap_exit, false).
+false
+30> keylist:start_link(linked1).
+{ok,<0.125.0>}
+31> keylist:start_link(linked2).
+{ok,<0.127.0>}
+32> exit(LinkedPid, kill).
+true
+33> self().
+<0.117.0>
+34> keylist:loop(linked2).
+** exception error: no function clause matching keylist:loop(linked2) (keylist.erl, line 27)
+35> self().
+<0.131.0>
+```

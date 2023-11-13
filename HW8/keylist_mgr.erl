@@ -10,15 +10,18 @@
 -author("kolpa").
 
 %% API
--export([loop/1, start/0]).
+-export([loop/1, start/0, init/0]).
 
--record(state, {children=[]}).
+-record(state, {children=[], ref = undefined}).
 
 start() ->
-  Pid = spawn(fun() -> loop(#state{}) end),
-  MonitorRef = erlang:monitor(process, Pid),
-  register(?MODULE, Pid),
-  {ok, Pid, MonitorRef}.
+  Pid = spawn_link(keylist_mgr, init, []),
+  {ok, Pid}.
+
+init() ->
+  process_flag(trap_exit, true),
+  register(keylist_mgr, self()),
+  loop(#state{}).
 
 loop(#state{children=Children}=State) ->
   process_flag(trap_exit, true),
