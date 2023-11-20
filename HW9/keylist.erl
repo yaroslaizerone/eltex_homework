@@ -9,7 +9,7 @@
 -module(keylist).
 -author("kolpa").
 
--export([start_link/1, add/4, is_member/2, take/2, find/2, delete/2]).
+-export([start_link/1, add/4, is_member/2, take/2, find/2, delete/2, stop/1]).
 -export_record([key]).
 
 %% Record definition
@@ -22,7 +22,9 @@
 %% @doc Создает новый процесс keylist с указанным именем.
 %% Start the keylist process
 start_link(Name) ->
-  spawn_link(fun() -> init(Name) end).
+  Pid = spawn_link(fun() -> init(Name) end),
+  register(Name, Pid),
+  Pid.
 
 %% Initialize the keylist
 init(Name) ->
@@ -94,4 +96,15 @@ delete(Name, Key) ->
   Name ! {self(), delete, Key},
   receive
     Result -> Result
+  end.
+
+%% @doc Завершает процесс с ключом.
+-spec stop(atom()) -> ok.
+stop(Name) ->
+  case whereis(Name) of
+    undefined ->
+      {error, not_found};
+    Pid ->
+      exit(Pid, kill),
+      ok
   end.

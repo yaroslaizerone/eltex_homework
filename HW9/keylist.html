@@ -24,6 +24,7 @@
 <tr><td valign="top"><a href="#find-2">find/2</a></td><td>Находит запись с указанным ключом в keylist.</td></tr>
 <tr><td valign="top"><a href="#is_member-2">is_member/2</a></td><td>Проверяет, является ли указанный ключ членом keylist.</td></tr>
 <tr><td valign="top"><a href="#start_link-1">start_link/1</a></td><td>Создает новый процесс keylist с указанным именем.</td></tr>
+<tr><td valign="top"><a href="#stop-1">stop/1</a></td><td>Завершает процесс с ключом.</td></tr>
 <tr><td valign="top"><a href="#take-2">take/2</a></td><td>Извлекает запись с указанным ключом из keylist.</td></tr>
 </table>
 
@@ -59,6 +60,12 @@
 <p> </p>
 </div><p>Создает новый процесс keylist с указанным именем.
   Start the keylist process</p>
+
+<h3 class="function"><a name="stop-1">stop/1</a></h3>
+<div class="spec">
+<p><tt>stop(Name::atom()) -&gt; ok</tt><br></p>
+<p> </p>
+</div><p>Завершает процесс с ключом.</p>
 
 <h3 class="function"><a name="take-2">take/2</a></h3>
 <div class="spec">
