@@ -13,6 +13,11 @@
   comment :: any()
 }).
 
+-record(state, {
+  list = []   :: list(#state{}) | [],
+  counter = 0 :: integer()
+}).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
@@ -61,7 +66,6 @@ init([]) ->
 %% @doc Handles synchronous calls to the keylist process.
 handle_call({add, Key, Value, Comment}, _From, List) ->
   NewList = [{Key, Value, Comment} | List],
-  1/0,
   {reply, ok, NewList};
 
 handle_call({is_member, Key}, _From, List) ->

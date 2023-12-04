@@ -98,17 +98,18 @@ handle_info({'EXIT', Pid, Reason}, State) ->
   #state{children=Children, permanent=Permanent} = State,
   case lists:keyfind(Pid, 2, Children) of
     {Name, _} ->
-      case proplists:get_value(restart, proplists:get_value(Name, Permanent, temporary)) of
-        permanent ->
+      %lists:member(Pid, Permanent)
+      %true -> удалить pid
+      case lists:member(Pid, Permanent) of
+        true ->
           {ok, NewPid} = keylist:start_link(Name),
           NewChildren = lists:keyreplace(Name, 1, Children, {Name, NewPid}),
-          NewPermanent = lists:keyreplace(Pid, 1, Permanent, NewPid),
-          {noreply, State#state{children=NewChildren, permanent=NewPermanent}};
-        temporary ->
-          error_logger:error_msg("Process ~p exited with reason ~p~n", [Pid, Reason]),
-          {noreply, State#state{children=lists:keydelete(Name, 1, Children), permanent=lists:keydelete(Pid, 1, Permanent)}};
+          NewPermanent = lists:delete(Pid, Permanent),%lists:delete
+          NewPermanent2 = [NewPid|NewPermanent],
+          {noreply, State#state{children=NewChildren, permanent=NewPermanent2}};
         false ->
-          {noreply, State}
+          error_logger:error_msg("Process ~p exited with reason ~p~n", [Pid, Reason]),
+          {noreply, State#state{children=lists:keydelete(Name, 1, Children)}}
       end;
     false ->
       {noreply, State}
@@ -120,7 +121,7 @@ handle_info({'DOWN', process, Pid}, State) ->
     {Name, _} ->
       %% Process with Name and Pid terminated, handle accordingly
       NewChildren = lists:keydelete(Name, 1, Children),
-      NewPermanent = lists:keydelete(Pid, 1, Permanent),
+      NewPermanent = lists:delete(Pid, Permanent),
       {noreply, State#state{children=NewChildren, permanent=NewPermanent}};
     false ->
       %% Process not found in children, handle accordingly

@@ -4,7 +4,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start/0, start_child/1, stop_child/1, stop/0, get_names/0]).
+-export([start/0, start_child/1, stop_child/1, exit_child/1, stop/0, get_names/0]).
 
 %% Record definition
 -record(state, {children=[], permanent=[]}).
@@ -28,6 +28,11 @@ start_child(Params) ->
 -spec stop_child(Name :: atom()) -> ok.
 stop_child(Name) ->
   gen_server:cast(?MODULE, {stop_child, Name}).
+
+%% @doc Exit a child process
+-spec exit_child(Name :: atom()) -> ok.
+exit_child(Name) ->
+  gen_server:cast(?MODULE, {'EXIT', whereis(Name), kill}).
 
 %% @doc Stop keylist_mgr
 -spec stop() -> ok.
@@ -57,8 +62,10 @@ handle_call(_Msg, _From, State) ->
 handle_cast({start_child, #{name := Name, restart := Restart}}, State) ->
   case Restart of
     temporary ->
-      {noreply, State}; % Do nothing if restart is temporary
-    _ ->
+      {ok, Pid} = keylist:start_link(Name),
+      NewChildren = [{Name, Pid} | State#state.children],
+      {noreply, State#state{children = NewChildren, permanent = State#state.permanent}};
+    permanent ->
       case proplists:is_defined(Name, State#state.children) of
         false ->
           {ok, Pid} = keylist:start_link(Name),
@@ -69,10 +76,10 @@ handle_cast({start_child, #{name := Name, restart := Restart}}, State) ->
               _ ->
                 erlang:error(type_error)
             end,
-
+          NewPermanent = [Pid | State#state.permanent],
           lists:foreach(fun({_, ChildPid}) -> ChildPid ! {added_new_child, Pid, Name} end, State#state.children),
-          io:format("ChildList: ~p~n", [State#state.children]),
-          {noreply, State#state{children = NewChildren}};
+          io:format("~p~n", [NewChildren]),
+          {noreply, State#state{children = NewChildren, permanent = NewPermanent}};
         true ->
           {reply, {error, already_started}, State}
       end
@@ -83,7 +90,8 @@ handle_cast({stop_child, Name}, State) ->
     true ->
       keylist:stop(Name),
       NewChildren = lists:keydelete(Name, 1, State#state.children),
-      {noreply, State#state{children = NewChildren}};
+      NewPermanent = lists:keydelete(whereis(Name), 1, State#state.permanent),
+      {noreply, State#state{children = NewChildren, permanent = NewPermanent}};
     false ->
       {reply, {error, not_found}, State}
   end;
@@ -91,6 +99,28 @@ handle_cast({stop_child, Name}, State) ->
 handle_cast(stop, State) ->
   lists:foreach(fun({_, Pid}) -> exit(Pid, kill) end, State#state.children),
   {stop, normal, ok}.
+
+%% @doc Handle unexpected exits of child processes
+handle_info({'EXIT', Pid, Reason}, State) ->
+  #state{children=Children, permanent=Permanent} = State,
+  case lists:keyfind(Pid, 2, Children) of
+    {Name, _} ->
+      %lists:member(Pid, Permanent)
+      %true -> удалить pid
+      case lists:member(Pid, Permanent) of
+        true ->
+          {ok, NewPid} = keylist:start_link(Name),
+          NewChildren = lists:keyreplace(Name, 1, Children, {Name, NewPid}),
+          NewPermanent = lists:delete(Pid, Permanent),%lists:delete
+          NewPermanent2 = [NewPid|NewPermanent],
+          {noreply, State#state{children=NewChildren, permanent=NewPermanent2}};
+        false ->
+          error_logger:error_msg("Process ~p exited with reason ~p~n", [Pid, Reason]),
+          {noreply, State#state{children=lists:keydelete(Name, 1, Children)}}
+      end;
+    false ->
+      {noreply, State}
+  end;
 
 %% @doc Handles non-call, non-cast messages to the keylist_mgr process.
 handle_info(_Info, State) ->
