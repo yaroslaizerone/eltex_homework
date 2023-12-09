@@ -97,7 +97,7 @@ handle_cast({stop_child, Name}, State) ->
   end;
 
 handle_cast(stop, State) ->
-  lists:foreach(fun({_, Pid}) -> exit(Pid, kill) end, State#state.children),
+  lists:foreach(fun({_Name, Pid}) -> keylist:stop(Pid) end, State#state.children),
   {stop, normal, ok}.
 
 %% @doc Handle unexpected exits of child processes
@@ -122,16 +122,14 @@ handle_info({'EXIT', Pid, Reason}, State) ->
       {noreply, State}
   end;
 
-handle_info({'DOWN', process, Pid}, State) ->
-  #state{children=Children, permanent=Permanent} = State,
+handle_info({'DOWN', _Ref, process, Pid, _Reason}, State) ->
+  #state{children = Children, permanent = Permanent} = State,
   case lists:keyfind(Pid, 2, Children) of
     {Name, _} ->
-      %% Process with Name and Pid terminated, handle accordingly
       NewChildren = lists:keydelete(Name, 1, Children),
       NewPermanent = lists:delete(Pid, Permanent),
-      {noreply, State#state{children=NewChildren, permanent=NewPermanent}};
+      {noreply, State#state{children = NewChildren, permanent = NewPermanent}};
     false ->
-      %% Process not found in children, handle accordingly
       {noreply, State}
   end;
 

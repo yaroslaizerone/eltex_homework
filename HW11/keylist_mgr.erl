@@ -57,7 +57,9 @@ handle_call(_Msg, _From, State) ->
 handle_cast({start_child, #{name := Name, restart := Restart}}, State) ->
   case Restart of
     temporary ->
-      {noreply, State}; % Do nothing if restart is temporary
+      {ok, Pid} = keylist:start_link(Name),
+      NewChildren = [{Name, Pid} | State#state.children],
+      {noreply, State#state{children = NewChildren, permanent = State#state.permanent}}; % Do nothing if restart is temporary
     _ ->
       case proplists:is_defined(Name, State#state.children) of
         false ->
