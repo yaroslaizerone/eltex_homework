@@ -12,66 +12,74 @@
 %% API
 -export([start/0, init/0, loop/1, start_child/1, stop_child/1, stop/0, get_names/0]).
 
+%% Record definition
 -record(state, {children=[], permanent=[]}).
 
-%% API функции
+%% API functions
 
-%% @doc Запуск keylist_mgr
+%% @doc Start keylist_mgr
+-spec start() -> {ok, Pid :: pid()} | {error, Reason :: term()}.
 start() ->
-  Pid = spawn_link(keylist_mgr, init, []),
+  Pid = spawn_link(?MODULE, init, []),
   {ok, Pid}.
 
-%% @doc Запуск дочернего процесса
+%% @doc Start a child process
+-spec start_child(Params :: #{name => atom(), restart => permanent | temporary}) -> ok.
 start_child(Params) ->
-  keylist_mgr ! {self(), start_child, Params}.
+  ?MODULE ! {self(), start_child, Params}.
 
-%% @doc Остановка дочернего процесса
+%% @doc Stop a child process
+-spec stop_child(Name :: atom()) -> ok.
 stop_child(Name) ->
-  keylist_mgr ! {self(), stop_child, Name}.
+  ?MODULE ! {self(), stop_child, Name}.
 
-%% @doc Остановка keylist_mgr
+%% @doc Stop keylist_mgr
+-spec stop() -> ok.
 stop() ->
-  keylist_mgr ! stop.
+  ?MODULE ! stop.
 
-%% @doc Получение списка имен дочерних процессов
+%% @doc Get the list of child process names
+-spec get_names() -> ok.
 get_names() ->
-  keylist_mgr ! {self(), get_names}.
+  ?MODULE ! {self(), get_names}.
 
-%% @doc Инициализация keylist_mgr
+%% @doc Initialize keylist_mgr
+-spec init() -> ok.
 init() ->
   process_flag(trap_exit, true),
-  register(keylist_mgr, self()),
+  register(?MODULE, self()),
   loop(#state{}).
 
-%% @doc Цикл обработки сообщений
+%% @doc Message handling loop
+-spec loop(State :: #state{}) -> ok.
 loop(#state{children=Children, permanent=Permanent}=State) ->
-  process_flag(trap_exit, true),
   receive
-    {From, start_child, Params} ->
-      Name = proplists:get_value(name, Params),
-      Restart = proplists:get_value(restart, Params, temporary),
-      case lists:keyfind(Name, 1, Children) of
+    {From, start_child, #{name := Name, restart := Restart}} ->
+      case proplists:is_defined(Name,Children) of
         false ->
-          {ok, Pid} = keylist:start_link(Name),
-          NewChildren = [{Name, Pid} | Children],
+          Pid = keylist:start_link(Name),
+          NewChildren =
           case Restart of
             permanent ->
-              NewPermanent = [{Name, Pid} | Permanent],
-              loop(State#state{children=NewChildren, permanent=NewPermanent});
+              [{Name, Pid} | Children];
             temporary ->
-              loop(State#state{children=NewChildren, permanent=Permanent})
-          end;
-        {_, Pid} ->
-          From ! {error, already_started},
-          loop(State)
+              Children;
+            _ ->
+              From ! {error, type_error}
+          end,
+          io:format("В Сhildren записалось: ~p~n", [NewChildren]),
+          From ! {add, Name, Pid},
+          loop(State#state{children = NewChildren});
+        true ->
+          From ! {error, already_started}
       end;
 
     {From, stop_child, Name} ->
-      case lists:keyfind(Name, 1, Children) of
-        {_, Pid} ->
+      case proplists:is_defined(Name,Children) of
+        true ->
           keylist:stop(Name),
           NewChildren = lists:keydelete(Name, 1, Children),
-          From ! ok,
+          From ! {stop, Name},
           loop(State#state{children=NewChildren});
         false ->
           From ! {error, not_found},
@@ -79,11 +87,11 @@ loop(#state{children=Children, permanent=Permanent}=State) ->
       end;
 
     stop ->
-      exit(normal);
+      lists:foreach(fun({_, Pid}) -> exit(Pid, kill) end, Children),
+      ok;
 
-    {From, get_keys} ->
-      Names = [Name || {Name, _} <- Children],
-      From ! Names,
+    {From, get_names} ->
+      From ! [Name || {Name, _} <- Children],
       loop(State);
 
     {'EXIT', Pid, Reason} ->
