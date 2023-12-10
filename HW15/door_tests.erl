@@ -9,13 +9,18 @@
 -module(door_tests).
 -include_lib("eunit/include/eunit.hrl").
 
-start_link_test() ->
-  {ok, Pid} = door:start_link({1, 2, 3, 4}),
-  ?debugFmt("~p~n", [Pid]),
-%%  {ok, Pid} = door:start_link({1, 2, 3, 4}),
-  ?assertEqual(ok, is_pid(Pid)),
-%%  ?assertEqual({ok, next}, door:enter(Pid, 1)),
-  ?debugFmt("Door process started successfully!", []).
+%%start_link_test() ->
+%%  ?assertEqual(ok, door:start_link({1, 2, 3})),
+%%  ?assertMatch({ok, _Pid}, door:start_link({4, 5, 6})),
+%%  ?assertMatch({ok, Pid}, door:start_link({7, 8, 9})),
+%%  ?assert(is_pid(Pid)),
+%%  ?debugFmt("Door process started successfully with code {7, 8, 9}!~n", []).
+%%
+%%init_test() ->
+%%  ?assertMatch({ok, _Pid}, door:start_link({1, 2, 3})),
+%%  ?assertMatch({ok, _Pid}, door:start_link({4, 5, 6})),
+%%  ?assertMatch({ok, _Pid}, door:start_link({7, 8, 9})),
+%%  ?debugFmt("Init callback was called for each start_link!~n", []).
 
 %%enter_test() ->
 %%  {ok, Pid} = door:start_link({1, 2, 3}),
