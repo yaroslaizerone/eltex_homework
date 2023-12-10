@@ -4,7 +4,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start/0, start_child/1, stop_child/1, exit_child/1, stop/0, get_names/0]).
+-export([start/0, start_child/1, stop_child/1, stop/0, get_names/0]).
 
 %% Record definition
 -record(state, {children=[], permanent=[]}).
@@ -28,11 +28,6 @@ start_child(Params) ->
 -spec stop_child(Name :: atom()) -> ok.
 stop_child(Name) ->
   gen_server:cast(?MODULE, {stop_child, Name}).
-
-%% @doc Exit a child process
--spec exit_child(Name :: atom()) -> ok.
-exit_child(Name) ->
-  gen_server:cast(?MODULE, {'EXIT', whereis(Name), kill}).
 
 %% @doc Stop keylist_mgr
 -spec stop() -> ok.
@@ -62,10 +57,8 @@ handle_call(_Msg, _From, State) ->
 handle_cast({start_child, #{name := Name, restart := Restart}}, State) ->
   case Restart of
     temporary ->
-      {ok, Pid} = keylist:start_link(Name),
-      NewChildren = [{Name, Pid} | State#state.children],
-      {noreply, State#state{children = NewChildren, permanent = State#state.permanent}};
-    permanent ->
+      {noreply, State}; % Do nothing if restart is temporary
+    _ ->
       case proplists:is_defined(Name, State#state.children) of
         false ->
           {ok, Pid} = keylist:start_link(Name),
@@ -78,7 +71,7 @@ handle_cast({start_child, #{name := Name, restart := Restart}}, State) ->
             end,
           NewPermanent = [Pid | State#state.permanent],
           lists:foreach(fun({_, ChildPid}) -> ChildPid ! {added_new_child, Pid, Name} end, State#state.children),
-          io:format("~p~n", [NewChildren]),
+          io:format("ChildList: ~p~n", [State#state.children]),
           {noreply, State#state{children = NewChildren, permanent = NewPermanent}};
         true ->
           {reply, {error, already_started}, State}
@@ -119,6 +112,19 @@ handle_info({'EXIT', Pid, Reason}, State) ->
           {noreply, State#state{children=lists:keydelete(Name, 1, Children)}}
       end;
     false ->
+      {noreply, State}
+  end;
+
+handle_info({'DOWN', process, Pid}, State) ->
+  #state{children=Children, permanent=Permanent} = State,
+  case lists:keyfind(Pid, 2, Children) of
+    {Name, _} ->
+      %% Process with Name and Pid terminated, handle accordingly
+      NewChildren = lists:keydelete(Name, 1, Children),
+      NewPermanent = lists:delete(Pid, Permanent),
+      {noreply, State#state{children=NewChildren, permanent=NewPermanent}};
+    false ->
+      %% Process not found in children, handle accordingly
       {noreply, State}
   end;
 

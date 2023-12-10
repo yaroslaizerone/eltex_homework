@@ -66,7 +66,7 @@ init([]) ->
 %% @doc Handles synchronous calls to the keylist process.
 handle_call({add, Key, Value, Comment}, _From, List) ->
   NewList = [{Key, Value, Comment} | List],
-  {reply, NewList, NewList};
+  {reply, ok, NewList};
 
 handle_call({is_member, Key}, _From, List) ->
   Reply = lists:keymember(Key, 1, List),
