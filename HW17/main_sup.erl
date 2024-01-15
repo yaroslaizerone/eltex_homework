@@ -24,7 +24,7 @@ init([]) ->
   io:format("Init main supervisor ~p~n", [?MODULE]),
 
   SupFlags = #{
-    strategy => one_for_one,
+    strategy => rest_for_one,
     intensity => 1,
     period => 5
   },

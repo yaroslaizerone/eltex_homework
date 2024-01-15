@@ -1,11 +1,3 @@
-%%%-------------------------------------------------------------------
-%%% @author kolpa
-%%% @copyright (C) 2023, <COMPANY>
-%%% @doc
-%%%
-%%% @end
-%%% Created : 24. дек. 2023 20:17
-%%%-------------------------------------------------------------------
 -module(keylist_sup).
 -author("kolpa").
 
@@ -20,36 +12,27 @@
 start_link() ->
   supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-start_child(Names) ->
-  lists:foreach(
-    fun(Name) ->
-      supervisor:start_child(?MODULE, [Name])
-    end,
-    Names
-  ).
+start_child(Name) ->
+  supervisor:start_child(?MODULE, [Name]).
 
 stop_child(Name) ->
   supervisor:terminate_child(?MODULE, whereis(Name)).
 
-init(_Args) ->
-  io:format("Init keylist supervisor ~n"),
+init([]) ->
+  io:format("Initializing keylist supervisor ~n"),
   SupFlags = #{
-    strategy => one_for_one,
+    strategy => simple_one_for_one,
     intensity => 1,
     period => 5
   },
 
-  KeylistNames = [keylist1, keylist2, keylist3],
-
-  ChildSpecs = lists:map(
-    fun(Name) ->
-      #{
-        id => Name,
-        start => {keylist, start_link, [Name]},
-        restart => permanent
-      }
-    end,
-    KeylistNames
-  ),
+  ChildSpecs = [
+    #{
+      id => keylist,
+      start => {keylist, start_link, []},
+      restart => permanent,
+      shutdown => 5000
+    }
+  ],
 
   {ok, {SupFlags, ChildSpecs}}.

@@ -20,9 +20,22 @@
 -spec start() -> {ok, Pid :: pid()} | {error, Reason :: term()}.
 start() ->
   {ok, Pid} = gen_server:start_link({local, ?MODULE}, ?MODULE, [], []),
+
+  % Удалить все записи из таблицы ETS
+  try
+    ets:delete(keylist_ets),
+    ok
+  catch
+    Reason:Error ->
+      io:format("Failed to delete records from ETS table: ~p~n", [Error]),
+      {error, Reason}
+  end,
+
+  % Создать новую таблицу ETS
   ets:new(keylist_ets, [set, public, named_table, {keypos, #keylist_record.key}]),
   io:format("Init keylist_mgr process ~n"),
   {ok, Pid}.
+
 
 %% @doc Start a child process
 -spec start_child(Params :: #{name => atom(), restart => permanent | temporary}) -> ok.
