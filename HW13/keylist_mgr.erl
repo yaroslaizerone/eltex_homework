@@ -6,6 +6,8 @@
 %% API
 -export([start/0, start_child/1, stop_child/1, stop/0, get_names/0]).
 
+-include("key.hrl").
+
 %% Record definition
 -record(state, {children=[], permanent=[]}).
 
@@ -17,7 +19,10 @@
 %% @doc Start keylist_mgr
 -spec start() -> {ok, Pid :: pid()} | {error, Reason :: term()}.
 start() ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []),
+  ets:new(keylist_ets, [set, public, named_table, {keypos, #keylist_record.key}]).
+  % Тип выбран Public для того, чтобы возможность добавлять записи
+  % Была и у дочених процессов
 
 %% @doc Start a child process
 -spec start_child(Params :: #{name => atom(), restart => permanent | temporary}) -> ok.
@@ -44,7 +49,7 @@ get_names() ->
 %% @doc Initializes the keylist_mgr process.
 init([]) ->
   process_flag(trap_exit, true),
-  {ok, #state{}}.
+  {ok, #state{children=[], permanent=[]}}.
 
 %% @doc Handles synchronous calls to the keylist_mgr process.
 handle_call(get_names, _From, State) ->
@@ -73,7 +78,7 @@ handle_cast({start_child, #{name := Name, restart := Restart}}, State) ->
             end,
           NewPermanent = [Pid | State#state.permanent],
           lists:foreach(fun({_, ChildPid}) -> ChildPid ! {added_new_child, Pid, Name} end, State#state.children),
-          io:format("ChildList: ~p~n", [State#state.children]),
+          io:format("~p~n", [NewChildren]),
           {noreply, State#state{children = NewChildren, permanent = NewPermanent}};
         true ->
           {reply, {error, already_started}, State}
@@ -92,7 +97,7 @@ handle_cast({stop_child, Name}, State) ->
   end;
 
 handle_cast(stop, State) ->
-  lists:foreach(fun({_, Pid}) -> exit(Pid, kill) end, State#state.children),
+  lists:foreach(fun({_Name, Pid}) -> keylist:stop(Pid) end, State#state.children),
   {stop, normal, ok}.
 
 %% @doc Handle unexpected exits of child processes
@@ -117,16 +122,14 @@ handle_info({'EXIT', Pid, Reason}, State) ->
       {noreply, State}
   end;
 
-handle_info({'DOWN', process, Pid}, State) ->
-  #state{children=Children, permanent=Permanent} = State,
+handle_info({'DOWN', _Ref, process, Pid, _Reason}, State) ->
+  #state{children = Children, permanent = Permanent} = State,
   case lists:keyfind(Pid, 2, Children) of
     {Name, _} ->
-      %% Process with Name and Pid terminated, handle accordingly
       NewChildren = lists:keydelete(Name, 1, Children),
       NewPermanent = lists:delete(Pid, Permanent),
-      {noreply, State#state{children=NewChildren, permanent=NewPermanent}};
+      {noreply, State#state{children = NewChildren, permanent = NewPermanent}};
     false ->
-      %% Process not found in children, handle accordingly
       {noreply, State}
   end;
 

@@ -67,9 +67,10 @@ loop(#state{children=Children, permanent=Permanent}=State) ->
             _ ->
               From ! {error, type_error}
           end,
+          NewPermanent = [Pid | Permanent],
           io:format("В Сhildren записалось: ~p~n", [NewChildren]),
           From ! {add, Name, Pid},
-          loop(State#state{children = NewChildren});
+          loop(State#state{children=NewChildren, permanent=NewPermanent});
         true ->
           From ! {error, already_started}
       end;
@@ -79,8 +80,9 @@ loop(#state{children=Children, permanent=Permanent}=State) ->
         true ->
           keylist:stop(Name),
           NewChildren = lists:keydelete(Name, 1, Children),
+          NewPermanent = lists:keydelete(whereis(Name), 1, Permanent),
           From ! {stop, Name},
-          loop(State#state{children=NewChildren});
+          loop(State#state{children=NewChildren, permanent=NewPermanent});
         false ->
           From ! {error, not_found},
           loop(State)
@@ -101,13 +103,15 @@ loop(#state{children=Children, permanent=Permanent}=State) ->
             permanent ->
               {ok, NewPid} = keylist:start_link(Name),
               NewChildren = lists:keyreplace(Name, 1, Children, {Name, NewPid}),
-              loop(State#state{children=NewChildren});
+              NewPermanent = lists:keyreplace(Pid, 1, Permanent, NewPid),
+              loop(State#state{children=NewChildren, permanent = NewPermanent});
             temporary ->
               error_logger:error_msg("Process ~p exited with reason ~p~n", [Pid, Reason]),
-              loop(State#state{children=lists:keydelete(Name, 1, Children)})
+              loop(State#state{children=lists:keydelete(Name, 1, Children), permanent = lists:keydelete(Pid,1,Permanent)});
+            false ->
+              not_found
           end;
         false ->
-          error_logger:error_msg("Process ~p exited with reason ~p~n", [Pid, Reason]),
-          loop(State#state{children=lists:keydelete(Pid, 2, Children)})
+          ok
       end
   end.
