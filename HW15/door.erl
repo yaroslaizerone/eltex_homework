@@ -75,7 +75,9 @@ locked({call, From}, {enter, Num}, #door_data{code = Code, entered = Entered, at
     false ->
       {keep_state, DoorData#door_data{entered = [Num | Entered]}, [{reply, From, {ok, next}}]}
   end;
-
+locked({call, From}, {change_code, _NewCode}, DoorData) ->
+  io:format("Cannot change code when the door is locked.~n"),
+  {keep_state, DoorData, [{reply, From, {error, cannot_change_code}}]};
 locked(cast, print_entered_nums, #door_data{entered = Entered} = _DoorData) ->
   io:format("Entered nums ~p~n", [lists:reverse(Entered)]),
   keep_state_and_data;
@@ -91,7 +93,7 @@ locked(info, {'EXIT', Pid, Reason}, DoorData) ->
   keep_state_and_data.
 
 % Open Handler
-open({call, From}, {enter, Num}, #door_data{code = _Code, entered = _Entered} = _DoorData) ->
+open({call, From}, {enter, Num}, _DoorData) ->
   io:format("The door is open, handling Num ~p~n", [Num]),
   {keep_state_and_data, [{reply, From, {error, already_open}}]};
 open(cast, print_entered_nums, #door_data{entered = Entered} = _DoorData) ->
@@ -110,6 +112,9 @@ open(state_timeout, open_door_timeout, DoorData) ->
 suspended({call, From}, {enter, _Num}, _DoorData) ->
   io:format("The door is suspended, rejecting attempts to enter~n"),
   {keep_state_and_data, [{reply, From, {error, suspended}}]};
+suspended({call, From}, {change_code, _NewCode}, DoorData) ->
+  io:format("Cannot change code when the door is suspended.~n"),
+  {keep_state, DoorData, [{reply, From, {error, cannot_change_code}}]};
 suspended(cast, _, _DoorData) ->
   io:format("Ignoring cast messages in the suspended state~n"),
   keep_state_and_data;
