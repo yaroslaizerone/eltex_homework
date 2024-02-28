@@ -7,29 +7,34 @@
 
 -behaviour(supervisor).
 
+%% API
 -export([start_link/0]).
 
+%% Callbacks
 -export([init/1]).
 
+%% Name server
 -define(SERVER, ?MODULE).
 
+% Starting supervisor process
 start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+  supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-%% sup_flags() = #{strategy => strategy(),         % optional
-%%                 intensity => non_neg_integer(), % optional
-%%                 period => pos_integer()}        % optional
-%% child_spec() = #{id => child_id(),       % mandatory
-%%                  start => mfargs(),      % mandatory
-%%                  restart => restart(),   % optional
-%%                  shutdown => shutdown(), % optional
-%%                  type => worker(),       % optional
-%%                  modules => modules()}   % optional
+% Initialization of child processes
 init([]) ->
-    SupFlags = #{strategy => one_for_all,
-                 intensity => 0,
-                 period => 1},
-    ChildSpecs = [],
-    {ok, {SupFlags, ChildSpecs}}.
+  io:format("Init web-rtp supervisor ~p~n", [?MODULE]),
+  SupFlags = #{strategy => one_for_all,
+    intensity => 5,
+    period => 10},
+  ChildSpecs = [
+    #{id => web_rtp_db,
+      start => {web_rtp_db, start, []},
+      restart => transient,
+      shutdown => 5000}
+  ],
+  {ok, {SupFlags, ChildSpecs}}.
 
-%% internal functions
+%% Stop supervisor
+terminate(_Reason, _State) ->
+  supervisor:terminate_child(?MODULE, web_rtp_db),
+  ok.
