@@ -78,7 +78,13 @@ handle_call({read, Num}, _From, State) ->
       mnesia:read(abonents, Num)
     end,
   {atomic, Result} = mnesia:transaction(Fun),
-  {reply, Result, State};
+
+  case Result of
+    [{abonents, Num, Name}] ->
+      {reply, {abonents, Num, Name}, State};
+    [] ->
+      {reply, not_found, State}
+  end;
 handle_call({read_all}, _From, State) ->
   Fun =
     fun() ->

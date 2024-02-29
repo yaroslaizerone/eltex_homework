@@ -3,53 +3,64 @@
 -include_lib("nkserver/include/nkserver_module.hrl").
 -include_lib("nksip/include/nksip.hrl").
 
--behaviour(supervisor).
-
 %% API
--export([start_link/0, init/1, call_abonent/1]).
+-export([call_abonent/1, start_sip/0]).
 
 %% API functions
-start_link() ->
-  supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+start_sip() ->
+  nksip:start_link(nksip_test_service,
+    #{sip_listen=>"<sip:all:5060;transport=udp>",
+      plugins => [nksip_uac_auto_auth],
+      sip_from => "sip:101@test.group"}).
 
 %% Calling abonent using SIP
 -spec call_abonent(NumAbonent :: string()) -> {ok, string()}.
 call_abonent(NumAbonent) ->
-  From_Uri = "sip:102@test.domain",
-  SrvId = test_ip_102,
+  From_Uri = "sip:102@10.0.20.11;transport=tcp",
+  SrvId = nksip_test_service,
   register_server(SrvId, From_Uri),
 
-  Uri = "sip:" ++ integer_to_list(NumAbonent) ++ "@test.domain",
+  Uri = "sip:" ++ integer_to_list(NumAbonent) ++ "@10.0.20.11;transport=tcp",
   PBX_IP = "10.0.20.11",
   SDP = create_sdp(PBX_IP),
 
   InviteOptions = [
-    {add, "x-nk-op", ok},
-    auto_2xx_ack,
-    get_request,
-    {route, "<sip:10.0.20.11;lr>"},
     {sip_pass, "1234"},
-    {body, SDP}
+    {body, nksip_sdp:new()},
+    auto_2xx_ack,
+    {get_meta, [reason_phrase]}
   ],
 
-  case nksip_uac:invite(SrvId, Uri, InviteOptions) of
-    {ok, 200, [{dialog, DialogId}]} ->
-      handle_successful_invite(DialogId, PBX_IP);
-    {ok, Code, _} ->
-      handle_error_response(Code, NumAbonent)
-    %_ ->
-     % handle_unhandled_error()
-  end.
+  nksip_uac:invite(nksip_test_service,
+    "<sip:102@10.0.20.11:5060;transport=tcp>",
+    [{route, "sip:10.0.20.11"},
+      {body, nksip_sdp:new()},
+      auto_2xx_ack,
+      {get_meta, [reason_phrase]}]).
+%%  case nksip_uac:invite(SrvId, Uri, InviteOptions) of
+%%    {ok, 200, [{dialog, DialogId}]} ->
+%%      handle_successful_invite(DialogId, PBX_IP);
+%%    {ok, Code, _} ->
+%%      handle_error_response(Code, NumAbonent)
+%%    %_ ->
+%%     % handle_unhandled_error()
+%%  end.
 
 %% Registering SIP server
 register_server(SrvId, From_Uri) ->
-  case whereis(SrvId) of
-    _Pid ->
-      nksip_uac:register(SrvId, "sip:10.0.20.11", [{sip_pass, "1234"}, contact, {meta, ["contact"]}]);
-    undefined ->
-      nksip:start_link(SrvId, #{sip_from => From_Uri,plugins => [nksip_uac_auto_auth], sip_listen => "<sip:all:8443;transport=udp>"}),
-      nksip_uac:register(SrvId, "sip:10.0.20.11", [{sip_pass, "1234"}, contact, {meta, ["contact"]}])
-  end.
+%%      nksip_uac:register(SrvId,
+%%        "sip:10.0.20.11",
+%%        [{sip_pass, "1234"},
+%%          contact, {get_meta, ["contact"]}]).
+%%  nksip_uac:register(nksip_test_service,
+%%    "<sip:102@10.0.20.11:5060;transport=tcp>",
+%%    [{sip_pass, "1234"},
+%%      contact,
+%%      {get_meta, [<<"contact">>]}]).
+      nksip_uac:register(SrvId,
+        From_Uri,
+        [{sip_pass, "1234"},
+        contact, {get_meta, [<<"contact">>]}]).
 
 %% Creating SDP for SIP request
 create_sdp(PBX_IP) ->
@@ -95,7 +106,7 @@ handle_error_response(480, NumAbonent) ->
   io:format("Response: ~p~n", [Response]),
   {ok, Response};
 handle_error_response(486, NumAbonent) ->
-  Response = "Code 486. Dialog wasn't started.\nAbonent " ++ NumAbonent ++ " is Busy Here\n",
+  Response = "Code 486. Dialog wasn't started.\nAbonent " ++ integer_to_list(NumAbonent) ++ " is Busy Here\n",
   io:format("Response: ~p~n", [Response]),
   {ok, Response};
 handle_error_response(404, NumAbonent) ->
@@ -112,12 +123,3 @@ handle_unhandled_error() ->
   Response = "Error! An unhandled error occurring during invite request!\n",
   io:format("Response: ~p~n", [Response]),
   {ok, Response}.
-
-%% Callbacks
-init([]) ->
-  SupSpec = nksip:get_sup_spec(test_ip_102, #{
-    sip_from => "sip:102@test.domain",
-    plugins => [nksip_uac_auto_auth, nksip_100rel],
-    sip_listen => "<sip:all:8443;transport=udp>"
-  }),
-  {ok, {SupSpec, []}}.

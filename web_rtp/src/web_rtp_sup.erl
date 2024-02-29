@@ -30,11 +30,10 @@ init([]) ->
     #{id => web_rtp_db,
       start => {web_rtp_db, start, []},
       restart => transient,
-      shutdown => 5000}
+      shutdown => 5000},
+    #{id => web_rtp_sip,
+      start => {web_rtp_sip, start_sip, []},
+      restart => permanent}
   ],
-  {ok, {SupFlags, ChildSpecs}}.
 
-%% Stop supervisor
-terminate(_Reason, _State) ->
-  supervisor:terminate_child(?MODULE, web_rtp_db),
-  ok.
+  {ok, {SupFlags, ChildSpecs}}.
