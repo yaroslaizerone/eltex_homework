@@ -8,8 +8,8 @@
 
 %% API functions
 start_sip() ->
-  nksip:start_link(nksip_test_service,
-    #{sip_listen=>"<sip:all:5060;transport=udp>",
+  nksip:start_link(nkservice,
+    #{sip_listen=>"<sip:all:5060>",
       plugins => [nksip_uac_auto_auth],
       sip_from => "sip:101@test.group"}).
 
@@ -17,12 +17,24 @@ start_sip() ->
 -spec call_abonent(NumAbonent :: string()) -> {ok, string()}.
 call_abonent(NumAbonent) ->
   From_Uri = "sip:102@10.0.20.11;transport=tcp",
-  SrvId = nksip_test_service,
-  register_server(SrvId, From_Uri),
+  SrvId = nkservice,
+%%  register_server(SrvId, From_Uri),
 
-  Uri = "sip:" ++ integer_to_list(NumAbonent) ++ "@10.0.20.11;transport=tcp",
+  nksip_uac:register(nkservice, "<sip:102@10.0.20.11:5060;transport=tcp>", [{sip_pass, "1234"}, contact, {get_meta, [<<"contact">>]}]),
+
+  Uri = "<sip:" ++ integer_to_list(NumAbonent) ++ "@10.0.20.11;transport=tcp>",
   PBX_IP = "10.0.20.11",
-  SDP = create_sdp(PBX_IP),
+  SDP = #sdp{address = {<<"IN">>, <<"IP4">>, erlang:list_to_binary(PBX_IP)},
+    connect = {<<"IN">>, <<"IP4">>, erlang:list_to_binary(PBX_IP)},
+    time = [{0, 0, []}],
+    medias = [#sdp_m{media = <<"audio">>,
+      port = 9990,
+      proto = <<"RTP/AVP">>,
+      fmt = [<<"0">>, <<"101">>],
+      attributes = [{<<"sendrecv">>, []}]
+    }
+    ]
+  },
 
   InviteOptions = [
     {sip_pass, "1234"},
@@ -31,20 +43,21 @@ call_abonent(NumAbonent) ->
     {get_meta, [reason_phrase]}
   ],
 
-  nksip_uac:invite(nksip_test_service,
+  CodecInfo = [{<<"audio">>, 1080, [{rtpmap, 0, <<"PCMU/8000">>}, <<"sendrecv">>]}],
+%%  nksip_sdp:new("10.0.20.11", [{<<"audio">>, 5060, [{rtpmap, 0, <<"PCMU/8000">>}]}]),
+  case nksip_uac:invite(nkservice,
     "<sip:102@10.0.20.11:5060;transport=tcp>",
-    [{route, "sip:10.0.20.11"},
-      {body, nksip_sdp:new()},
+    [{sip_pass, "1234"},
+      {body, SDP},
       auto_2xx_ack,
-      {get_meta, [reason_phrase]}]).
-%%  case nksip_uac:invite(SrvId, Uri, InviteOptions) of
-%%    {ok, 200, [{dialog, DialogId}]} ->
-%%      handle_successful_invite(DialogId, PBX_IP);
-%%    {ok, Code, _} ->
-%%      handle_error_response(Code, NumAbonent)
-%%    %_ ->
-%%     % handle_unhandled_error()
-%%  end.
+      {get_meta, [reason_phrase]}]) of
+    {ok, 200, [{dialog, DialogId},{reason_phrase,<<"OK">>}]} ->
+      handle_successful_invite(DialogId);
+    {ok, Code, _} ->
+      handle_error_response(Code, NumAbonent);
+    _ ->
+      handle_unhandled_error()
+  end.
 
 %% Registering SIP server
 register_server(SrvId, From_Uri) ->
@@ -57,27 +70,10 @@ register_server(SrvId, From_Uri) ->
 %%    [{sip_pass, "1234"},
 %%      contact,
 %%      {get_meta, [<<"contact">>]}]).
-      nksip_uac:register(SrvId,
-        From_Uri,
-        [{sip_pass, "1234"},
-        contact, {get_meta, [<<"contact">>]}]).
-
-%% Creating SDP for SIP request
-create_sdp(PBX_IP) ->
-  #sdp{address = {<<"IN">>, <<"IP4">>, erlang:list_to_binary(PBX_IP)},
-    connect = {<<"IN">>, <<"IP4">>, erlang:list_to_binary(PBX_IP)},
-    time = [{0, 0, []}],
-    medias = [#sdp_m{media = <<"audio">>,
-      port = 9990,
-      proto = <<"RTP/AVP">>,
-      fmt = [<<"0">>, <<"101">>],
-      attributes = [{<<"sendrecv">>, []}]
-    }
-    ]
-  }.
+  ok.
 
 %% Handling a successful invite response
-handle_successful_invite(DialogId, PBX_IP) ->
+handle_successful_invite(DialogId) ->
   {ok, Meta} = nksip_dialog:get_meta(invite_remote_sdp, DialogId),
   [MediaList | _] = element(18, Meta),
   Port = erlang:element(3, MediaList),
@@ -92,10 +88,9 @@ handle_successful_invite(DialogId, PBX_IP) ->
 
 %% Executing a voice call
 execute_voice_call(Port, Remote_PBX_IP) ->
-  CurrentDir = "cd apps/web_rtp",
-  ConvertVoice = "ffmpeg -i priv/voice/generate.wav -codec:a pcm_mulaw -ar 8000 -ac 1 priv/voice/output.wav -y",
-  StartVoice = "./voice_client priv/voice/output.wav " ++ Remote_PBX_IP ++ " " ++ erlang:integer_to_list(Port),
-  Cmd = CurrentDir ++ " && " ++ ConvertVoice ++ " && " ++ StartVoice,
+  ConvertVoice = "ffmpeg -i voice/test_call.wav -codec:a pcm_mulaw -ar 8000 -ac 1 voice/output.wav -y",
+  StartVoice = "./voice_client voice/output.wav " ++ Remote_PBX_IP ++ " " ++ erlang:integer_to_list(Port),
+  Cmd = ConvertVoice ++ " && " ++ StartVoice,
   Res = os:cmd(Cmd),
 
   io:format("Cmd ~p~nResult ~p~n", [Cmd, Res]).

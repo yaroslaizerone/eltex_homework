@@ -29,23 +29,15 @@ RUN apk add --no-cache git \
     libstdc++ \
     ffmpeg
 
-# Copy Makefile
-WORKDIR /buildroot
-RUN mkdir /c_src
-COPY ./c_src/Makefile /buildroot/web_rtp/c_src/Makefile
+COPY --from=builder /buildroot/web_rtp/voice /web_rtp/voice
 
-# Copy rtpsent.c
-COPY ./c_src/rtpsend.c /buildroot/web_rtp/c_src/rtpsend.c
-
-# Start Make for comp
-WORKDIR /buildroot/web_rtp/c_src
-RUN make
-
-# Change working directory to the project directory
-WORKDIR /buildroot/web_rtp
+COPY --from=builder /buildroot/web_rtp/c_src /web_rtp/c_src
 
 # Copy the built release from the builder stage
 COPY --from=builder /buildroot/web_rtp/_build/prod/rel/web_rtp /web_rtp
+
+# Start Make for comp
+RUN make -C /web_rtp/c_src
 
 # Expose ports
 EXPOSE 8080
