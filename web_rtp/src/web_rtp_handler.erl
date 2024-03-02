@@ -19,7 +19,7 @@ init(Req, State) ->
       handle_get(Req);
     {_,_} ->
       ok
-    end,
+  end,
   {ok, Req, State}.
 
 %% Handling the request
@@ -30,9 +30,14 @@ handle_post(Req) ->
   Json = jsone:decode(Body),
   case Json of
     #{<<"name">> := Name, <<"num">> := Num} ->
-      io:format("~p~n", [Json]),
-      web_rtp_db:insert_abonent(Num, Name),
-      cowboy_req:reply(201, #{<<"content-type">> => <<"text/plain">>}, <<"Successfully! Insert into Database.">>, Req);
+      case web_rtp_db:read_abonent(Num) of
+        {abonents, _, _} ->
+          cowboy_req:reply(409, #{<<"content-type">> => <<"text/plain">>}, <<"Abonent already exists">>, Req);
+        not_found ->
+          io:format("~p~n", [Json]),
+          web_rtp_db:insert_abonent(Num, Name),
+          cowboy_req:reply(201, #{<<"content-type">> => <<"text/plain">>}, <<"Successfully! Insert into Database.">>, Req)
+      end;
     _ ->
       io:format("~p~n", [Json]),
       cowboy_req:reply(400, #{}, <<"Invalid JSON format">>, Req)
@@ -44,14 +49,14 @@ handle_delete(Req) ->
   case Path of
     [<<"abonent">>, Num ] ->
       IntNum = binary_to_integer(Num),
-      % Проверяем наличие записи
+      % Check for record existence
       case web_rtp_db:read_abonent(IntNum) of
         {abonents, _, _} ->
-          % Если запись существует, удаляем ее
+          % If record exists, delete it
           web_rtp_db:delete_abonent(IntNum),
           cowboy_req:reply(200, #{<<"content-type">> => <<"text/plain">>}, "Accuses delete.", Req);
         not_found ->
-          % Если запись не найдена, отправляем соответствующий ответ
+          % If record not found, send appropriate response
           cowboy_req:reply(404, #{}, <<"Abonent not found">>, Req)
       end;
     _ ->
@@ -63,23 +68,24 @@ handle_get(Req) ->
   Path = binary:split(cowboy_req:path(Req), <<"/">>, [global, trim_all]),
   case Path of
     [<<"abonents">>] ->
-      % Читаем всех абонентов из базы данных
+      % Read all abonents from the database
       Abonents = web_rtp_db:read_all_abonent(),
-      % Для каждого абонента выполняем звонок
-      lists:foreach(fun({_, Num, _Name}) -> web_rtp_sip:call_abonent(Num) end, Abonents),
-      % Отправляем ответ
-      AbonentNames = lists:map(fun({_Table, _Num, Name}) -> Name end, Abonents),
-      cowboy_req:reply(200, #{<<"content-type">> => <<"text/plain">>}, lists:flatten(io_lib:format("Call Abonents: ~p", [AbonentNames])), Req);
+      % For each abonent, make a call and save the results
+      Results = lists:map(fun({_Table, Num, _Name}) ->
+        {Num, web_rtp_sip:call_abonent(Num)} end, Abonents),
+      % Formulate the response containing the call results
+      ResponseBody = lists:flatten(io_lib:format("Call Results: ~p", [Results])),
+      cowboy_req:reply(200, #{<<"content-type">> => <<"text/plain">>}, ResponseBody, Req);
     [<<"abonent">>, Num] ->
       IntNum = binary_to_integer(Num),
-      % Проверяем наличие записи
+      % Check for record existence
       case web_rtp_db:read_abonent(IntNum) of
         {abonents, _, _} ->
-          % Если запись существует, инициализируем вызов
-          web_rtp_sip:call_abonent(IntNum),
-          cowboy_req:reply(200, #{<<"content-type">> => <<"text/plain">>}, "Call Abonent.", Req);
+          % If record exists, initialize the call and return the result
+          {_, Result} = web_rtp_sip:call_abonent(IntNum),
+          cowboy_req:reply(200, #{<<"content-type">> => <<"text/plain">>}, Result, Req);
         not_found ->
-          % Если запись не найдена, отправляем соответствующий ответ
+          % If record not found, send appropriate response
           cowboy_req:reply(404, #{}, <<"Abonent not found">>, Req)
       end
   end,

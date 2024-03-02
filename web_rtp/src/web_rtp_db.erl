@@ -38,7 +38,7 @@ insert_abonent(Num, Name) ->
 
 %% Sync reading the record through the key
 -spec read_abonent(Num :: non_neg_integer()) ->
-  {abonents, Num :: non_neg_integer(), Name :: string()}.
+  {abonents, Num :: non_neg_integer(), Name :: string()} | error.
 read_abonent(Num) ->
   gen_server:call(?MODULE, {read, Num}).
 

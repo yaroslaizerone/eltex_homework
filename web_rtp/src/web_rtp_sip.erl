@@ -16,41 +16,18 @@ start_sip() ->
 %% Calling abonent using SIP
 -spec call_abonent(NumAbonent :: string()) -> {ok, string()}.
 call_abonent(NumAbonent) ->
-  From_Uri = "sip:102@10.0.20.11;transport=tcp",
-  SrvId = nkservice,
-%%  register_server(SrvId, From_Uri),
-
-  nksip_uac:register(nkservice, "<sip:102@10.0.20.11:5060;transport=tcp>", [{sip_pass, "1234"}, contact, {get_meta, [<<"contact">>]}]),
-
   Uri = "<sip:" ++ integer_to_list(NumAbonent) ++ "@10.0.20.11;transport=tcp>",
-  PBX_IP = "10.0.20.11",
-  SDP = #sdp{address = {<<"IN">>, <<"IP4">>, erlang:list_to_binary(PBX_IP)},
-    connect = {<<"IN">>, <<"IP4">>, erlang:list_to_binary(PBX_IP)},
-    time = [{0, 0, []}],
-    medias = [#sdp_m{media = <<"audio">>,
-      port = 9990,
-      proto = <<"RTP/AVP">>,
-      fmt = [<<"0">>, <<"101">>],
-      attributes = [{<<"sendrecv">>, []}]
-    }
-    ]
-  },
+  SrvId = nkservice,
 
-  InviteOptions = [
-    {sip_pass, "1234"},
-    {body, nksip_sdp:new()},
-    auto_2xx_ack,
-    {get_meta, [reason_phrase]}
-  ],
+  nksip_uac:register(SrvId, Uri, [{sip_pass, "1234"}, contact, {get_meta, [<<"contact">>]}]),
 
-  CodecInfo = [{<<"audio">>, 1080, [{rtpmap, 0, <<"PCMU/8000">>}, <<"sendrecv">>]}],
-%%  nksip_sdp:new("10.0.20.11", [{<<"audio">>, 5060, [{rtpmap, 0, <<"PCMU/8000">>}]}]),
-  case nksip_uac:invite(nkservice,
-    "<sip:102@10.0.20.11:5060;transport=tcp>",
+  CodecConfig = [{<<"audio">>, 1080, [{rtpmap, 0, <<"PCMU/8000">>}, sendrecv]}],
+
+  case nksip_uac:invite(SrvId, Uri,
     [{sip_pass, "1234"},
-      {body, SDP},
-      auto_2xx_ack,
-      {get_meta, [reason_phrase]}]) of
+      {body, nksip_sdp:new("10.0.20.11", CodecConfig)},
+      {get_meta, [reason_phrase]},
+      auto_2xx_ack]) of
     {ok, 200, [{dialog, DialogId},{reason_phrase,<<"OK">>}]} ->
       handle_successful_invite(DialogId);
     {ok, Code, _} ->
@@ -58,19 +35,6 @@ call_abonent(NumAbonent) ->
     _ ->
       handle_unhandled_error()
   end.
-
-%% Registering SIP server
-register_server(SrvId, From_Uri) ->
-%%      nksip_uac:register(SrvId,
-%%        "sip:10.0.20.11",
-%%        [{sip_pass, "1234"},
-%%          contact, {get_meta, ["contact"]}]).
-%%  nksip_uac:register(nksip_test_service,
-%%    "<sip:102@10.0.20.11:5060;transport=tcp>",
-%%    [{sip_pass, "1234"},
-%%      contact,
-%%      {get_meta, [<<"contact">>]}]).
-  ok.
 
 %% Handling a successful invite response
 handle_successful_invite(DialogId) ->
@@ -82,7 +46,7 @@ handle_successful_invite(DialogId) ->
 
   nksip_uac:bye(DialogId, []),
 
-  Response = "Dialog was started with code 200.\nDialog was finished succesfully!\n",
+  Response = "Dialog was started with code 200.\nDialog was finished successfully!\n",
   io:format("Response: ~p~n", [Response]),
   {ok, Response}.
 
@@ -96,8 +60,12 @@ execute_voice_call(Port, Remote_PBX_IP) ->
   io:format("Cmd ~p~nResult ~p~n", [Cmd, Res]).
 
 %% Handling different response codes
+handle_error_response(403, NumAbonent) ->
+  Response = "Code 403. Dialog wasn't started.\nAbonent " ++ integer_to_list(NumAbonent) ++ " is forbidden to receive calls!\n",
+  io:format("Response: ~p~n", [Response]),
+  {ok, Response};
 handle_error_response(480, NumAbonent) ->
-  Response = "Code 480. Dialog wasn't started.\nAbonent " ++ NumAbonent ++ " is could not respond now!\n",
+  Response = "Code 480. Dialog wasn't started.\nAbonent " ++ integer_to_list(NumAbonent) ++ " is could not respond now!\n",
   io:format("Response: ~p~n", [Response]),
   {ok, Response};
 handle_error_response(486, NumAbonent) ->
@@ -105,11 +73,11 @@ handle_error_response(486, NumAbonent) ->
   io:format("Response: ~p~n", [Response]),
   {ok, Response};
 handle_error_response(404, NumAbonent) ->
-  Response = "Code 404. Error! Dialog wasn't started.\nAbonent " ++ NumAbonent ++ " is NOT FOUND!\n",
+  Response = "Code 404. Error! Dialog wasn't started.\nAbonent " ++ integer_to_list(NumAbonent) ++ " is NOT FOUND!\n",
   io:format("Response: ~p~n", [Response]),
   {ok, Response};
 handle_error_response(Code, _NumAbonent) ->
-  Response = "Response code " ++ erlang:integer_to_list(Code) ++ "!\nAn error occured!\n",
+  Response = "Response code " ++ integer_to_list(Code) ++ "!\nAn error occurred!\n",
   io:format("Response: ~p~n", [Response]),
   {ok, Response}.
 
