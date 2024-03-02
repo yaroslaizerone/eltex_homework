@@ -42,7 +42,7 @@ handle_successful_invite(DialogId) ->
   [MediaList | _] = element(18, Meta),
   Port = erlang:element(3, MediaList),
   Remote_PBX_IP =  erlang:binary_to_list(element(3, element(8, MediaList))),
-  execute_voice_call(Port, Remote_PBX_IP),
+  voice_call(Port, Remote_PBX_IP),
 
   nksip_uac:bye(DialogId, []),
 
@@ -51,7 +51,7 @@ handle_successful_invite(DialogId) ->
   {ok, Response}.
 
 %% Executing a voice call
-execute_voice_call(Port, Remote_PBX_IP) ->
+voice_call(Port, Remote_PBX_IP) ->
   ConvertVoice = "ffmpeg -i voice/test_call.wav -codec:a pcm_mulaw -ar 8000 -ac 1 voice/output.wav -y",
   StartVoice = "./voice_client voice/output.wav " ++ Remote_PBX_IP ++ " " ++ erlang:integer_to_list(Port),
   Cmd = ConvertVoice ++ " && " ++ StartVoice,
