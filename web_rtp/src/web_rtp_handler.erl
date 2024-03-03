@@ -71,8 +71,8 @@ handle_get(Req) ->
       % Read all abonents from the database
       Abonents = web_rtp_db:read_all_abonent(),
       % For each abonent, make a call and save the results
-      Results = lists:map(fun({_Table, Num, _Name}) ->
-        {Num, web_rtp_sip:call_abonent(Num)} end, Abonents),
+      Results = lists:map(fun({_Table, Num, Name}) ->
+        {Num, Name, web_rtp_sip:call_abonent(Num)} end, Abonents),
       % Formulate the response containing the call results
       ResponseBody = lists:flatten(io_lib:format("Call Results: ~p", [Results])),
       cowboy_req:reply(200, #{<<"content-type">> => <<"text/plain">>}, ResponseBody, Req);
@@ -80,13 +80,17 @@ handle_get(Req) ->
       IntNum = binary_to_integer(Num),
       % Check for record existence
       case web_rtp_db:read_abonent(IntNum) of
-        {abonents, _, _} ->
+        {abonents, NumAbonent, Name} when NumAbonent =:= IntNum ->
           % If record exists, initialize the call and return the result
           {_, Result} = web_rtp_sip:call_abonent(IntNum),
-          cowboy_req:reply(200, #{<<"content-type">> => <<"text/plain">>}, Result, Req);
+          Response = io_lib:format("NUM: ~p\nName: ~p\nResult: ~p", [NumAbonent, Name, Result]),
+          cowboy_req:reply(200, #{<<"content-type">> => <<"text/plain">>}, Response, Req);
         not_found ->
           % If record not found, send appropriate response
-          cowboy_req:reply(404, #{}, <<"Abonent not found">>, Req)
+          cowboy_req:reply(404, #{}, <<"Abonent not found">>, Req);
+        {abonents, _NumAbonent, _Name} ->
+          % Unexpected response, send appropriate response
+          cowboy_req:reply(500, #{}, <<"Internal Server Error">>, Req)
       end
   end,
   ok.
