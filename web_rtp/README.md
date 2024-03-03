@@ -29,6 +29,7 @@ DELETE - http://localhost:8080/abonent/{number_abonent} Удаление дан�
 - Реализация и сборка проекта в Docker контейнер.
 
 # Демонстрация работы проекта
+![2024-03-03 14-32-21.gif](readme_media%2F2024-03-03%2014-32-21.gif)
 [2024-03-03 14-32-21.mp4](readme_media%2F2024-03-03%2014-32-21.mp4)
 
 # Dockerfile
@@ -91,6 +92,83 @@ EXPOSE 8443
 # Run the application
 CMD ["/web_rtp/bin/web_rtp", "foreground"]
 ```
+# Api DB
+
+
+Добавление данных в таблицу abonents
+```
+handle_cast({insert, Num, Name},  State) ->
+  Rec = #abonents{num = Num, name = Name},
+  Fun =
+    fun() ->
+      case mnesia:read(abonents, Num) of
+        [] ->
+          mnesia:write(Rec);
+        [_] ->
+          {error, already_exists}
+      end
+    end,
+  Result = mnesia:transaction(Fun),
+  io:format("Record was insert with code: ~p~n", [Result]),
+  {noreply, State};
+```
+Удаление данных из таблицы abonents
+```
+handle_cast({insert, Num, Name},  State) ->
+  Rec = #abonents{num = Num, name = Name},
+  Fun =
+    fun() ->
+      case mnesia:read(abonents, Num) of
+        [] ->
+          mnesia:write(Rec);
+        [_] ->
+          {error, already_exists}
+      end
+    end,
+  Result = mnesia:transaction(Fun),
+  io:format("Record was insert with code: ~p~n", [Result]),
+  {noreply, State};
+handle_cast({delete, Num},  State) ->
+  Fun =
+    fun() ->
+      case mnesia:read(abonents, Num) of
+        [_] ->
+          mnesia:delete({abonents, Num});
+        [] ->
+          {error, wrong_number}
+      end
+    end,
+  Result = mnesia:transaction(Fun),
+  io:format("Record was deleted with code: ~p~n", [Result]),
+  {noreply, State};
+```
+Чтение записи из таблицы abonents с использованием
+```
+handle_call({read, Num}, _From, State) ->
+  Fun =
+    fun() ->
+      mnesia:read(abonents, Num)
+    end,
+  {atomic, Result} = mnesia:transaction(Fun),
+
+  case Result of
+    [{abonents, Num, Name}] ->
+      {reply, {abonents, Num, Name}, State};
+    [] ->
+      {reply, not_found, State}
+  end;
+```
+Чтение всех записей из таблицы abonents
+```
+handle_call({read_all}, _From, State) ->
+  Fun =
+    fun() ->
+      mnesia:select(abonents, [{'_', [], ['$_']}])
+    end,
+  {atomic, Result} = mnesia:transaction(Fun),
+  {reply, Result, State}.
+```
+
 
 # App API
 
