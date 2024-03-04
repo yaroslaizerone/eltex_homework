@@ -29,7 +29,7 @@ init([]) ->
   ChildSpecs = [
     #{id => web_rtp_db,
       start => {web_rtp_db, start, []},
-      restart => transient,
+      restart => permanent,
       shutdown => 5000},
     #{id => web_rtp_sip,
       start => {web_rtp_sip, start_sip, []},
